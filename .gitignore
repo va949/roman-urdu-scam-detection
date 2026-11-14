@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+data/raw/
+results/
+models/
+*.xlsx
+
+# personal files, keep out of the public repo
+CV*.docx
+CV*.pdf
+cv.html
