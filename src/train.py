@@ -56,7 +56,7 @@ def main():
     best = None
     for C in (0.3, 1.0, 3.0, 10.0):
         m = build(C).fit(X.iloc[tr], y[tr])
-        f1 = f1_score(y[va], m.predict(X.iloc[va]), average="macro")
+        f1 = f1_score(y[va], m.predict(X.iloc[va]), average="macro", zero_division=0)
         print(f"  C={C:<5} val macro-F1={f1:.3f}")
         if best is None or f1 > best[1]:
             best = (C, f1, m)

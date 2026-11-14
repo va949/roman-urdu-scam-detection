@@ -16,12 +16,15 @@ def main():
     ap.add_argument("messages", nargs="*")
     a = ap.parse_args()
 
-    bundle = joblib.load(a.model)
-    model, thr = bundle["model"], bundle["threshold"]
     msgs = list(a.messages)
     if a.file:
         with open(a.file, encoding="utf-8") as f:
             msgs += [line.strip() for line in f if line.strip()]
+    if not msgs:
+        ap.error("no messages to classify: pass them as arguments or use --file")
+
+    bundle = joblib.load(a.model)
+    model, thr = bundle["model"], bundle["threshold"]
     for msg, p in zip(msgs, model.predict_proba(msgs)[:, 1]):
         verdict = "SCAM" if p >= thr else "ok  "
         print(f"{verdict}  p(scam)={p:.2f}  {msg[:90]}")

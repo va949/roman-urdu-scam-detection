@@ -72,13 +72,17 @@ def main():
     if df["category"].nunique() > a.folds:
         split_sets["type"] = splits.category_folds(df, a.folds)
     results = {}
-    print(f"\n{'model':<16}{'split':<10}{'macro-F1':>14}{'scam recall':>14}{'false alarms':>14}")
+    # ASCII "+/-" (mean +/- std): "±" garbles on Windows consoles and redirected output.
+    def cell(m):
+        return f"{m[0]:.3f} +/- {m[1]:.3f}"
+
+    print(f"\n{'model':<16}{'split':<10}{'macro-F1':>17}{'scam recall':>17}{'false alarms':>17}")
     for name, mk in models().items():
         for split_name, folds in split_sets.items():
             r = evaluate(mk, df, folds)
             results[f"{name}/{split_name}"] = r
             f1, rec, far = r["macro_f1"], r["scam_recall"], r["false_alarm_rate"]
-            print(f"{name:<16}{split_name:<10}{f1[0]:>8.3f}±{f1[1]:.3f}{rec[0]:>9.3f}±{rec[1]:.3f}{far[0]:>9.3f}±{far[1]:.3f}")
+            print(f"{name:<16}{split_name:<10}{cell(f1):>17}{cell(rec):>17}{cell(far):>17}")
 
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
     Path(a.out).write_text(json.dumps({"data": a.data, "columns": used, "results": results}, indent=2))

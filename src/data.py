@@ -63,6 +63,11 @@ def load(path, text_col=None, label_col=None, group_col=None, prefer_normalized=
     """
     raw = read_table(path)
     t, l, g = detect_columns(raw, text_col, label_col, group_col, prefer_normalized)
+    # Drop blank messages BEFORE astype(str), which would turn NaN into the text "nan".
+    blank = raw[t].isna() | (raw[t].astype(str).str.strip() == "")
+    if blank.any():
+        print(f"note: dropping {int(blank.sum())} blank message(s) from {path}")
+    raw = raw[~blank].reset_index(drop=True)
     df = pd.DataFrame({"text": raw[t].astype(str), "label": to_binary(raw[l])})
     cat = _find([str(c) for c in raw.columns], "source_type", "category", "type", avoid=("id",))
     df["category"] = raw[cat].astype(str) if cat else "unknown"
@@ -80,4 +85,4 @@ def load(path, text_col=None, label_col=None, group_col=None, prefer_normalized=
     else:
         df["group"] = [f"_solo_{i}" for i in df.index]
     df.attrs["columns_used"] = {"text": t, "label": l, "group": g, "category": cat}
-    return df.dropna(subset=["text"]).reset_index(drop=True)
+    return df.reset_index(drop=True)

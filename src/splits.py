@@ -1,6 +1,7 @@
 """Two ways to split: random (what most prior work did) and template-aware (honest)."""
 from __future__ import annotations
 
+import numpy as np
 from sklearn.model_selection import StratifiedGroupKFold, StratifiedKFold
 
 
@@ -11,25 +12,42 @@ def random_folds(df, k=5, seed=0):
 
 
 def train_val_test(df, val=0.15, test=0.15, seed=0):
-    """Template-aware holdout: ~70/15/15 by template, stratified by label.
+    """Template-aware holdout: ~70/15/15 by template, with BOTH classes in every part.
+
+    Each class's templates are shuffled and dealt out separately: test first, then
+    val, each taking templates that fit under its share of that class's messages
+    (at least one template each, the smallest if none fit); the rest go to train.
+    A mixed-label template counts as its majority label.
 
     Test is the locked final exam (use once). Tune everything on val.
     """
-    import numpy as np
-    from sklearn.model_selection import StratifiedGroupKFold
-
-    def carve(idx, frac):
-        sub = df.iloc[idx]
-        n = max(2, round(1 / frac))
-        sgkf = StratifiedGroupKFold(n_splits=min(n, sub["group"].nunique()), shuffle=True, random_state=seed)
-        keep, out = next(sgkf.split(sub["text"], sub["label"], groups=sub["group"]))
-        return idx[keep], idx[out]
-
-    all_idx = np.arange(len(df))
-    rest, te = carve(all_idx, test)
-    tr, va = carve(rest, val / (1 - test))
+    rng = np.random.default_rng(seed)
+    grp = df["group"].to_numpy()
+    sizes = df["group"].value_counts()
+    majority = df.groupby("group")["label"].mean().ge(0.5).astype(int)
+    parts = {"train": [], "val": [], "test": []}
+    for lab in (0, 1):
+        groups = majority.index[majority == lab].to_numpy()
+        if len(groups) < 3:
+            raise ValueError(f"label {lab} has only {len(groups)} template(s); need >= 3 so "
+                             "train, val and test each get one. Use template_folds instead.")
+        remaining = list(groups[rng.permutation(len(groups))])
+        total = sizes[remaining].sum()
+        for part, frac in (("test", test), ("val", val)):
+            target, taken = frac * total, 0
+            reserve = 2 if part == "test" else 1  # leave >= 1 template for each later part
+            for g in list(remaining):
+                if len(remaining) > reserve and taken + sizes[g] <= target:
+                    parts[part].append(g); remaining.remove(g); taken += sizes[g]
+            if taken == 0:  # every template overshoots the target: take the smallest
+                g = min(remaining, key=lambda x: sizes[x])
+                parts[part].append(g); remaining.remove(g)
+        parts["train"].extend(remaining)
+    tr, va, te = (np.flatnonzero(np.isin(grp, parts[p])) for p in ("train", "val", "test"))
     for a, b in ((tr, va), (tr, te), (va, te)):
-        assert not set(df["group"].iloc[a]) & set(df["group"].iloc[b]), "template leaked across split"
+        assert not set(grp[a]) & set(grp[b]), "template leaked across split"
+    for name, idx in (("train", tr), ("val", va), ("test", te)):
+        assert df["label"].iloc[idx].nunique() == 2, f"{name} split has only one class"
     return tr, va, te
 
 
