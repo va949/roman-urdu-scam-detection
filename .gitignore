@@ -9,3 +9,12 @@ models/
 CV*.docx
 CV*.pdf
 cv.html
+
+# iOS demo: generated project and build output
+mobile/ios/*.xcodeproj/
+mobile/ios/build/
+mobile/ios/Payload/
+mobile/ios/*.ipa
+mobile/ios/ScamClassifierKit/.build/
+mobile/ios/ScamDetectorDemo/Info.plist
+.swiftpm/

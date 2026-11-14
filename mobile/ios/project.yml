@@ -1,0 +1,36 @@
+# XcodeGen spec: `xcodegen generate` (run in mobile/ios) creates ScamDetectorDemo.xcodeproj.
+# The .xcodeproj is generated, not committed.
+name: ScamDetectorDemo
+options:
+  bundleIdPrefix: org.example
+  deploymentTarget:
+    iOS: "16.0"
+packages:
+  ScamClassifierKit:
+    path: ScamClassifierKit
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  ScamDetectorDemo:
+    type: application
+    platform: iOS
+    sources:
+      - ScamDetectorDemo
+    dependencies:
+      - package: ScamClassifierKit
+    info:
+      path: ScamDetectorDemo/Info.plist
+      properties:
+        CFBundleDisplayName: Scam Detector
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        ITSAppUsesNonExemptEncryption: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.example.scamdetectordemo
+        TARGETED_DEVICE_FAMILY: "1"
+    scheme: {}

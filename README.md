@@ -139,6 +139,13 @@ python src/xlmr.py --data data/raw/phishing_dataset_1000.xlsx --seeds 0 1 2 --no
 python src/predict.py --model models/xlmr "Aap ka JazzCash account block ho gaya hai, foran verify karein"
 ```
 
+### On-device demo (iOS)
+The TF-IDF + augmentation model also runs on an iPhone: a 494 KB JSON model (memorised phone numbers and IDs pruned out), a Swift port that matches scikit-learn to within 1e-9 (checked by `swift test`), and a SwiftUI demo app. GitHub Actions builds an unsigned IPA on a macOS runner, so no Mac is needed. See [mobile/ios/README.md](mobile/ios/README.md).
+
+```bash
+python src/export_mobile.py --model models/tfidf_lr_aug.joblib   # re-export after retraining
+```
+
 ## Layout
 ```
 data/raw/           downloaded datasets (git-ignored)
@@ -154,6 +161,9 @@ src/metrics.py      metrics and the validation threshold rule
 src/perturb.py      label-preserving perturbations (robustness tests + augmentation)
 src/robustness.py   scores a model on perturbed test sets and the probes
 src/compare.py      comparison tables from results/*.json
+src/export_mobile.py  exports the TF-IDF model to JSON for the iOS app (+ parity cases)
+mobile/ios/         Swift classifier package, SwiftUI demo app, XcodeGen spec
+.github/workflows/  ios-demo.yml: parity tests + unsigned IPA on a macOS runner
 src/predict.py      inference with a saved model (TF-IDF .joblib or XLM-R folder)
 src/make_sample.py  synthetic sample generator
 ```

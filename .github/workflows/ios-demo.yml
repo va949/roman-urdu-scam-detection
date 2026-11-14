@@ -1,0 +1,62 @@
+name: iOS demo (unsigned IPA)
+
+on:
+  push:
+    paths:
+      - "mobile/ios/**"
+      - ".github/workflows/ios-demo.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: mobile/ios
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain versions
+        run: xcodebuild -version && swift --version
+
+      # Fails the build if the Swift classifier drifts from scikit-learn (> 1e-9 on any case).
+      - name: Parity tests (Swift vs scikit-learn)
+        working-directory: mobile/ios/ScamClassifierKit
+        run: swift test
+
+      - name: Generate Xcode project
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Build app (unsigned, device)
+        run: |
+          xcodebuild \
+            -project ScamDetectorDemo.xcodeproj \
+            -scheme ScamDetectorDemo \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Package unsigned IPA
+        run: |
+          APP=build/Build/Products/Release-iphoneos/ScamDetectorDemo.app
+          test -d "$APP"
+          rm -rf Payload && mkdir Payload
+          cp -R "$APP" Payload/
+          zip -qry ScamDetectorDemo-unsigned.ipa Payload
+          ls -lh ScamDetectorDemo-unsigned.ipa
+          du -sh "$APP"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ScamDetectorDemo-unsigned-ipa
+          path: mobile/ios/ScamDetectorDemo-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 30
