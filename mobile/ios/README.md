@@ -6,6 +6,14 @@ A small SwiftUI app that shows the scam classifier running **entirely on an iPho
 - **Check:** paste or type a message and get a live verdict, scam probability and on-device latency.
 - **About:** model size, feature count, load time, threshold, limitations, data credit.
 
+<p align="center">
+  <img src="../../docs/screenshots/ios-inbox.webp" width="250" alt="Inbox: synthetic SMS, each labelled Likely scam or Looks safe with a probability">
+  <img src="../../docs/screenshots/ios-check.webp" width="250" alt="Check a message: a BISP OTP scam flagged as Likely scam (62%), computed on-device in 0.70 ms">
+  <img src="../../docs/screenshots/ios-about.webp" width="250" alt="About: TF-IDF + logistic regression, 10,833 features, 506 KB model, 7 ms load time, fully on-device">
+</p>
+
+Measured on an iPhone: under 1 ms per message (0.70 ms in the Check screenshot), 7 ms to load the model. Note the "Ammi" chat message in the inbox: correctly marked safe, but at 54% scam probability, just under the 58.8% threshold, an example of how close to the line legitimate casual messages sit.
+
 ## What runs on the phone
 
 `ScamClassifierKit` (a Swift package) is a hand port of the scikit-learn pipeline: TF-IDF over character 2–5-grams within words plus word 1–2-grams, then logistic regression. The model ships as a 494 KB JSON file (`scam_model.json`, 10,833 features) exported by `src/export_mobile.py` from `models/tfidf_lr_aug.joblib` (TF-IDF + augmentation, seed 0, the most robust model in the benchmark).

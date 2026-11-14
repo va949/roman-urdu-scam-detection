@@ -142,6 +142,14 @@ python src/predict.py --model models/xlmr "Aap ka JazzCash account block ho gaya
 ### On-device demo (iOS)
 The TF-IDF + augmentation model also runs on an iPhone: a 494 KB JSON model (memorised phone numbers and IDs pruned out), a Swift port that matches scikit-learn to within 1e-9 (checked by `swift test`), and a SwiftUI demo app. GitHub Actions builds an unsigned IPA on a macOS runner, so no Mac is needed. See [mobile/ios/README.md](mobile/ios/README.md).
 
+<p align="center">
+  <img src="docs/screenshots/ios-inbox.webp" width="250" alt="Inbox: synthetic SMS, each labelled Likely scam or Looks safe with a probability">
+  <img src="docs/screenshots/ios-check.webp" width="250" alt="Check a message: a BISP OTP scam flagged as Likely scam (62%), computed on-device in 0.70 ms">
+  <img src="docs/screenshots/ios-about.webp" width="250" alt="About: TF-IDF + logistic regression, 10,833 features, 506 KB model, 7 ms load time, fully on-device">
+</p>
+
+Running on an iPhone: the inbox is classified on-device; a message is scored in under 1 ms and the model loads in 7 ms. (iOS reports the 494 KiB model file as "506 KB" because it uses decimal kilobytes.)
+
 ```bash
 python src/export_mobile.py --model models/tfidf_lr_aug.joblib   # re-export after retraining
 ```
