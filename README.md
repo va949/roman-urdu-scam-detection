@@ -4,7 +4,7 @@ Can models catch **new** scam SMS in Roman Urdu/English, or do they just memoris
 
 People in Pakistan receive constant fraud SMS: fake BISP/Ehsaas payouts, "your JazzCash account is blocked", prize scams. These messages are heavily templated. Evaluating with a random train/test split leaks near-duplicates across the split and inflates scores toward 99–100%. This project evaluates every model on **message templates it has never seen**.
 
-**Status:** work in progress. TF-IDF and fine-tuned XLM-R results on the Zenodo dataset are below; the rest of the model ladder is in [PLAN.md](PLAN.md).
+**Status:** work in progress. TF-IDF and fine-tuned XLM-R results on the Zenodo dataset, plus a robustness suite, are below. Short version: both models score 90–95% on held-out templates but only ~60–68% macro-F1 on hand-written messages in other styles; the dataset, not the model, is the limit. The rest of the model ladder is in [PLAN.md](PLAN.md).
 
 ## Results so far
 
@@ -55,7 +55,38 @@ A quick sanity probe: 10 short messages written by hand in a different style fro
 | salary credit, real OTP, bill reminder, chat (legit) | 0.00–0.02 | 0.12–0.33 |
 | **correct** | **7 / 10** | **9 / 10** |
 
-XLM-R fits the dataset's phrasing (e.g. "Apka… acount… block ho gaya h… **warna**") so tightly that dropping the threat clause flips a confident 1.00 into a confident 0.00. TF-IDF is less confident but more robust here. Template-held-out scores on this dataset overstate real-world robustness, which is the case for the robustness suite and new data in PLAN.md.
+XLM-R fits the dataset's phrasing (e.g. "Apka… acount… block ho gaya h… **warna**") so tightly that dropping the threat clause flips a confident 1.00 into a confident 0.00. TF-IDF is less confident but more robust here. Section 4 replaces this anecdote with a systematic robustness suite.
+
+### 4. Robustness suite and augmentation
+
+**Why the dataset is easy:** it has strong surface shortcuts. No scam contains "aap" (44% of legit messages do) or "your" (34% of legit), every scam spells "apka", phone numbers appear in 56% of scams and 0% of legit, and **there are no English scams at all**: every English message is a legit OTP or salary SMS.
+
+**The suite** (`src/perturb.py`, `src/robustness.py`) scores each model on:
+- the test set rewritten by one label-preserving perturbation at a time. **Seen** families (also used for augmentation): `spelling` (apka ↔ aap ka, hai/h/ha, krein/karein, …), `drop_threat` (remove the "warna…" clause), `swap_entity` (banks, wallets, programs, including names absent from the dataset; new phone numbers), `currency` (PKR ↔ Rs ↔ rupay, 50,000 ↔ 50000). **Unseen** families (never used in training): `char_tricks` (J@zzCash, 0TP, split or doubled letters) and `casing_punct` (all lowercase or caps, no punctuation).
+- **40 hand-written probes** (`data/probes/handwritten_v1.csv`, 20 scam, 20 legit): spaced "aap" scams, English scams, scam types missing from the dataset (SIM block, parcel fee, job, loan), and legit messages that start with "Apka". Written by hand for this project, not collected from real inboxes.
+
+**Augmentation** (`--augment 2`): two perturbed copies of every training message (and one of every validation message), using only the seen families.
+
+Macro-F1, mean +/- std over seeds 0–2 (reproduce with `python src/compare.py`):
+
+| Test condition | TF-IDF | TF-IDF + aug | XLM-R | XLM-R + aug |
+|---|---|---|---|---|
+| clean test | 0.901 +/- 0.036 | 0.912 +/- 0.052 | **0.950 +/- 0.052** | 0.795 +/- 0.076 |
+| spelling | **0.950 +/- 0.022** | 0.924 +/- 0.044 | 0.916 +/- 0.046 | 0.809 +/- 0.071 |
+| drop_threat | 0.901 +/- 0.036 | 0.912 +/- 0.052 | **0.950 +/- 0.052** | 0.795 +/- 0.076 |
+| swap_entity | 0.896 +/- 0.035 | 0.912 +/- 0.052 | **0.955 +/- 0.046** | 0.795 +/- 0.076 |
+| currency | 0.863 +/- 0.012 | **0.912 +/- 0.052** | 0.868 +/- 0.030 | 0.795 +/- 0.076 |
+| char_tricks (unseen) | 0.901 +/- 0.028 | 0.917 +/- 0.049 | **0.950 +/- 0.031** | 0.800 +/- 0.065 |
+| casing_punct (unseen) | 0.897 +/- 0.036 | **0.917 +/- 0.057** | 0.812 +/- 0.017 | 0.791 +/- 0.055 |
+| **hand-written probes** | 0.663 +/- 0.030 | **0.678 +/- 0.006** | 0.602 +/- 0.020 | 0.587 +/- 0.044 |
+
+Probe ROC-AUC: TF-IDF 0.718, TF-IDF + aug **0.739**, XLM-R 0.652, XLM-R + aug 0.678.
+
+What this says:
+- **The suite exposes the shortcuts.** Swapping "PKR" for "Rs" raises false alarms from 10.5% to 16.9% (TF-IDF) and from 8.2% to 22.1% (XLM-R); spelling swaps raise XLM-R's false alarms to 13.5%; lowercasing and stripping punctuation drops XLM-R's scam recall to 82% (TF-IDF already lowercases, so it barely notices).
+- **Augmentation makes TF-IDF invariant to the perturbations, including the two it never saw** (all rows 0.91–0.92), and nudges its probe score up. It is a modest, real gain.
+- **Augmentation made XLM-R worse at its chosen thresholds:** false alarms rose to 32–35% on every condition, while ROC-AUC stayed ~0.996. With the spelling shortcut removed, unseen legit templates look more scam-like, and the saturated validation set still cannot place the threshold. Two of three seeds early-stopped after one epoch.
+- **Every model fails the probes** (macro-F1 ≤ 0.68). All four miss **all 5 English scams**, because the training data has none, and most of the new scam types (job, loan). No amount of perturbing this dataset fixes that: **the ceiling is the data, not the model.** New, real messages (PLAN.md, Week 2), including English and mixed scams, are the next step.
 
 ### Method notes
 - **Threshold rule:** best validation macro-F1 over 0.20–0.80; ties go to the middle of the tied range. (An earlier version took the first tie, which always meant 0.20, the most trigger-happy setting.)
@@ -87,9 +118,13 @@ The baseline reports each model on three splits:
 
 ### Train our own model and run inference
 ```bash
-# template-aware train/val/test (~70/15/15, both classes in every part); tunes on val, reports test once
-python src/train.py --data data/raw/phishing_dataset_1000.xlsx --out models/tfidf_lr.joblib
+# template-aware train/val/test (~70/15/15, both classes in every part); tunes on val, then scores
+# test + the robustness suite once per seed; writes results/tfidf.json
+python src/train.py --data data/raw/phishing_dataset_1000.xlsx --seeds 0 1 2 --out models/tfidf_lr.joblib
+python src/train.py --data data/raw/phishing_dataset_1000.xlsx --seeds 0 1 2 --augment 2 --out models/tfidf_lr_aug.joblib
 python src/predict.py --model models/tfidf_lr.joblib "Aap ka JazzCash account block ho gaya hai, foran verify karein"
+python src/perturb.py "Apka HBL account block ho gaya hai"   # see what each perturbation does
+python src/compare.py --metric false_alarm_rate               # comparison table from results/*.json
 ```
 
 ### Fine-tune XLM-R (GPU recommended)
@@ -99,6 +134,7 @@ pip install -r requirements-dl.txt
 
 # same splits as train.py for the same seeds; downloads xlm-roberta-base (~1.1 GB) on first run
 python src/xlmr.py --data data/raw/phishing_dataset_1000.xlsx --seeds 0 1 2 --out models/xlmr
+python src/xlmr.py --data data/raw/phishing_dataset_1000.xlsx --seeds 0 1 2 --augment 2 --out models/xlmr_aug
 python src/xlmr.py --data data/raw/phishing_dataset_1000.xlsx --seeds 0 1 2 --no-test   # choose settings on val only
 python src/predict.py --model models/xlmr "Aap ka JazzCash account block ho gaya hai, foran verify karein"
 ```
@@ -107,12 +143,17 @@ python src/predict.py --model models/xlmr "Aap ka JazzCash account block ho gaya
 ```
 data/raw/           downloaded datasets (git-ignored)
 data/sample/        synthetic smoke-test data
+data/probes/        hand-written probe messages (synthetic)
 src/data.py         loading, column detection, derived templates
 src/templates.py    template recovery by masked-shingle similarity
 src/splits.py       random, template-aware and type-aware splits
 src/baseline.py     TF-IDF baselines + cross-validated evaluation
-src/train.py        train/val/test training of the TF-IDF model; shared threshold + metrics helpers
-src/xlmr.py         XLM-R fine-tuning with the same protocol
+src/train.py        train/val/test training of the TF-IDF model (+ --augment)
+src/xlmr.py         XLM-R fine-tuning with the same protocol (+ --augment)
+src/metrics.py      metrics and the validation threshold rule
+src/perturb.py      label-preserving perturbations (robustness tests + augmentation)
+src/robustness.py   scores a model on perturbed test sets and the probes
+src/compare.py      comparison tables from results/*.json
 src/predict.py      inference with a saved model (TF-IDF .joblib or XLM-R folder)
 src/make_sample.py  synthetic sample generator
 ```

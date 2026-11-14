@@ -24,8 +24,9 @@ from sklearn.metrics import f1_score
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, get_linear_schedule_with_warmup
 
 import data as data_mod
-import splits
-from train import pick_threshold, ranking, report
+import robustness
+from metrics import full, pick_threshold
+from train import split_texts
 
 BF16 = True  # set from --precision in main()
 
@@ -79,15 +80,28 @@ def speed(model, enc, idx, device, bs=32, n=128):
     return round(len(idx) / (time.perf_counter() - t), 1)
 
 
+def make_proba(model, tok, max_len, device):
+    """predict_proba(list[str]) for arbitrary texts (used by the robustness suite and predict.py)."""
+    def predict_proba(texts):
+        texts = list(texts)
+        enc = dict(tok(texts, truncation=True, max_length=max_len, padding="longest", return_tensors="pt"))
+        return scam_probs(model, enc, np.arange(len(texts)), 64, device)
+    return predict_proba
+
+
 def run(df, seed, a, tok, device):
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
-    tr, va, te = splits.train_val_test(df, seed=seed)
-    y = df["label"].to_numpy()
-    print(f"\n=== seed {seed}: train={len(tr)} val={len(va)} test={len(te)} | templates "
-          f"{df.group.iloc[tr].nunique()}/{df.group.iloc[va].nunique()}/{df.group.iloc[te].nunique()}")
+    # same split (and, with --augment, the same augmented copies) as train.py for this seed
+    (otr, ova, ote), (Xtr, ytr), (Xva, yva), (Xte, yte) = split_texts(df, seed, a.augment)
+    texts = Xtr + Xva + Xte
+    y = np.concatenate([ytr, yva, yte])
+    tr = np.arange(len(Xtr)); va = np.arange(len(Xva)) + len(Xtr); te = np.arange(len(Xte)) + len(Xtr) + len(Xva)
+    print(f"\n=== seed {seed}: train={len(tr)} val={len(va)} test={len(te)} "
+          f"({'augmented x' + str(a.augment) if a.augment else 'no augmentation'}) | templates "
+          f"{df.group.iloc[otr].nunique()}/{df.group.iloc[ova].nunique()}/{df.group.iloc[ote].nunique()}")
 
-    enc = dict(tok(df["text"].tolist(), truncation=True, max_length=a.max_len, padding="longest", return_tensors="pt"))
+    enc = dict(tok(texts, truncation=True, max_length=a.max_len, padding="longest", return_tensors="pt"))
     model = AutoModelForSequenceClassification.from_pretrained(a.model_name, num_labels=2).to(device)
 
     # balanced class weights from TRAIN only, like class_weight="balanced" in the TF-IDF models
@@ -134,16 +148,18 @@ def run(df, seed, a, tok, device):
     result = {
         "seed": seed, "best_epoch": best[1], "threshold": round(thr, 3), "train_seconds": train_secs,
         "peak_vram_gb": round(torch.cuda.max_memory_allocated() / 2**30, 2) if device.type == "cuda" else None,
-        "val": report(y[va], (pv >= thr).astype(int)), "test": None, "history": history,
+        "val": full(y[va], pv, thr), "test": None, "history": history,
     }
     if a.no_test:  # choosing settings: never look at test
         print(f"  best epoch {best[1]}, threshold {thr:.3f} | test not scored (--no-test)  ({train_secs}s)")
         return model, enc, te, thr, result
     pt = scam_probs(model, enc, te, a.batch * 2, device)  # the one look at test
-    result["test"] = t = {**report(y[te], (pt >= thr).astype(int)), **ranking(y[te], pt)}
+    rob = robustness.evaluate(make_proba(model, tok, a.max_len, device), thr, Xte, yte, seed, clean_probs=pt)
+    t = result["test"] = rob["clean"]
+    result["robustness"] = rob
     print(f"  best epoch {best[1]}, threshold {thr:.3f} | TEST macro-F1 {t['macro_f1']:.3f}  "
-          f"scam recall {t['scam_recall']:.3f}  false alarms {t['false_alarm_rate']:.3f}  "
-          f"ROC-AUC {t['roc_auc']:.3f}  ({train_secs}s)")
+          f"accuracy {t['accuracy']:.3f}  recall {t['scam_recall']:.3f}  false alarms {t['false_alarm_rate']:.3f}  "
+          f"ROC-AUC {t['roc_auc']:.3f}  | probes macro-F1 {rob['probes']['macro_f1']:.3f}  ({train_secs}s)")
     return model, enc, te, thr, result
 
 
@@ -163,7 +179,9 @@ def main():
                     help="fp32 was the most stable on validation; bf16 is ~2x faster")
     ap.add_argument("--no-test", action="store_true",
                     help="score validation only (for choosing settings); nothing is saved")
-    ap.add_argument("--results", default="results/xlmr.json")
+    ap.add_argument("--augment", type=int, default=0,
+                    help="perturbed copies per train message, SEEN families only (0 = off)")
+    ap.add_argument("--results", default=None, help="default: results/xlmr[_augK].json")
     a = ap.parse_args()
     global BF16
     BF16 = a.precision == "bf16"
@@ -193,17 +211,20 @@ def main():
         if device.type == "cuda":
             torch.cuda.empty_cache()
 
-    part = "val" if a.no_test else "test"
-    summary = {k: (round(float(np.mean(v)), 4), round(float(np.std(v)), 4)) for k, v in
-               {m: [r[part][m] for r in results] for m in
-                ("macro_f1", "scam_recall", "false_alarm_rate") + (() if a.no_test else ("roc_auc", "pr_auc"))}.items()}
-    print(f"\n{part.upper()} over seeds {a.seeds} (mean, std): {summary}")
     if a.no_test:
+        summary = {k: (round(float(np.mean([r["val"][k] for r in results])), 4),
+                       round(float(np.std([r["val"][k] for r in results])), 4))
+                   for k in ("macro_f1", "accuracy", "scam_recall", "false_alarm_rate")}
+        print(f"\nVAL over seeds {a.seeds} (mean, std): {summary}")
         return
-    Path(a.results).parent.mkdir(parents=True, exist_ok=True)
-    Path(a.results).write_text(json.dumps({"model": a.model_name, "args": vars(a), "summary": summary,
-                                           "runs": results}, indent=2))
-    print(f"saved {a.results}")
+    print(f"\nXLM-R{' + augmentation x' + str(a.augment) if a.augment else ''}, mean over seeds {a.seeds}:")
+    print(robustness.table([r["robustness"] for r in results]))
+    out = Path(a.results or f"results/xlmr{'_aug' + str(a.augment) if a.augment else ''}.json")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps({"model": a.model_name, "args": vars(a),
+                               "summary": robustness.summarize([r["robustness"] for r in results]),
+                               "runs": results}, indent=2))
+    print(f"saved {out}")
 
 
 def load_predictor(path):
@@ -213,11 +234,7 @@ def load_predictor(path):
     meta = json.loads((Path(path) / "threshold.json").read_text())
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
-
-    def predict_proba(texts):
-        enc = dict(tok(list(texts), truncation=True, max_length=meta["max_len"], padding="longest", return_tensors="pt"))
-        return scam_probs(model, enc, np.arange(len(texts)), 32, device)
-    return predict_proba, meta["threshold"]
+    return make_proba(model, tok, meta["max_len"], device), meta["threshold"]
 
 
 if __name__ == "__main__":

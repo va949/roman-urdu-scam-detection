@@ -1,0 +1,41 @@
+text,label,kind,style
+"Aap ka JazzCash account block ho gaya hai, foran verify karein",1,account_block,spaced_aap
+"Aap ka JazzCash account block ho gaya hai, foran verify karein: hxxp://jazz-verify.invalid",1,account_block,spaced_aap_link
+"Aap ka Easypaisa account band kar diya gaya hai. Dobara chalu karne ke liye apna PIN 03XX-XXXXXXX par bhejein",1,account_block,spaced_aap
+"Your Easypaisa account will be suspended today. Share the 4-digit code sent to you to keep it active.",1,account_block,english
+"Dear customer your HBL account has been temporarily blocked due to KYC. Update now at hxxp://hbl-kyc.invalid",1,account_block,english_link
+"Mubarak ho! Aap ne 50,000 Rs inaam jeeta hai. Hasil karne ke liye 03XX-XXXXXXX par call karein.",1,prize,spaced_aap
+"Congratulations! You have won a Honda CD70 in the Jeeto Pakistan lucky draw. Send your CNIC and OTP to claim.",1,prize,english
+"Mubarak ho! Aap ki BISP raqam 25000 Rs mansoor ho gayi hai, OTP batayein",1,gov_scheme,spaced_aap
+"BISP: Aap ki 25000 ki qist aa gayi hai. Wasool karne ke liye apna CNIC aur OTP is number par bhejein.",1,gov_scheme,spaced_aap
+"Benazir program ki taraf se aap ko 10000 rupay mile hain. Apna Easypaisa PIN reply karein taake raqam transfer ho sake.",1,gov_scheme,spaced_aap
+"PTA notice: aap ki SIM 24 ghante mein band ho jayegi. Biometric verification ke liye 03XX-XXXXXXX par call karein.",1,new_type_sim_block,spaced_aap
+"Aap ka parcel TCS warehouse mein ruka hua hai. Delivery ke liye 150 Rs fee is link par jama karein hxxp://tcs-track.invalid",1,new_type_parcel,spaced_aap_link
+"Ghar baithe online job! Rozana 5000 kamayen. Registration fee 1000 Rs JazzCash karein 03XX-XXXXXXX",1,new_type_job,mixed
+"FBR alert: your tax return is pending and your bank account will be frozen today. Call 03XX-XXXXXXX immediately.",1,account_freeze,english
+"bhai mere 5000 ghalti se aap ke easypaisa mein chale gaye hain plz wapis bhej do",1,wrong_number,spaced_aap_casual
+"Your Meezan Bank card has been used for Rs 80,000. If not you, share the OTP with our agent at 03XX-XXXXXXX to cancel.",1,fake_bank_alert,english
+"Aap ka account hack hone ka khatra hai. Apna password aur OTP is number par bhejein taake account mehfooz rahe.",1,account_hack,spaced_aap
+"Instant loan 50,000 Rs bina guarantee! Apni CNIC ki tasveer aur JazzCash PIN bhejein, 10 minute mein raqam.",1,new_type_loan,mixed
+"Urgent: Aap ka ATM card expire ho gaya hai. Naya card ke liye card number aur PIN reply karein.",1,card_suspend,spaced_aap
+"Ehsaas emergency cash: 12000 Rs aap ke naam par. Is link par CNIC darj karein hxxp://ehsaas-cash.invalid",1,gov_scheme,spaced_aap_link
+"Bhai kal milte hain",0,chat,casual
+"Ammi ne kaha hai shaam ko jaldi ghar aa jana, khana bana hua hai",0,chat,casual
+"Your HBL a/c credited with Rs 25,000 salary",0,salary,english
+"1234 is your JazzCash OTP. Do not share it with anyone.",0,otp,english
+"Dear customer, your LESCO bill of Rs 3,200 is due on 15th. Please pay before due date.",0,bill_reminder,english
+"Dear customer, Rs 5,000 has been transferred to your JazzCash wallet. TID 12345678",0,wallet_transfer,english
+"Apka Easypaisa account se 2,000 Rs Ali ko transfer ho gaye hain. Balance 8,450 Rs.",0,wallet_transfer,joined_apka
+"Apki gari ka e-challan 750 Rs ka jari hua hai. Akhri tareekh se pehle ada karein.",0,challan,joined_apka
+"Apka bijli ka bill 4,500 Rs hai. Due date 20 tareekh hai. Shukriya - IESCO",0,bill_reminder,joined_apka
+"Apke Meezan Bank account mein 15,000 Rs deposit hue hain. Available balance 42,300 Rs.",0,deposit,joined_apka
+"Apka MCB debit card 3,000 Rs ki khareedari ke liye use hua. Agar aap ne nahi kiya to helpline par call karein.",0,atm_alert,joined_apka
+"Apka order Daraz se dispatch ho gaya hai aur 2-3 din mein deliver hoga.",0,new_type_delivery,joined_apka
+"Your doctor appointment is confirmed for Monday 11am. Reply C to cancel.",0,new_type_appointment,english
+"Apka mobile balance 50 Rs se kam hai. Recharge karne ke liye *444# dial karein.",0,new_type_telecom,joined_apka
+"Bank kabhi bhi aap se PIN ya OTP nahi poochta. Kisi ke saath share na karein. - HBL",0,bank_warning,spaced_aap
+"Apka Jazz package renew ho gaya hai. 30 din ke liye 10GB internet.",0,new_type_telecom,joined_apka
+"FBR: Apka tax return successfully file ho gaya hai. Shukriya.",0,new_type_tax,joined_apka
+"Salam bhai, kal ki meeting 3 baje hai, zaroor aana",0,chat,casual
+"Apki UBL credit card ki monthly statement tayyar hai. Minimum payment 5,000 Rs, due date 25 tareekh.",0,statement,joined_apka
+"Your Easypaisa account PIN was changed successfully. If this was not you, call 3737 from your registered number.",0,security_notice,english
