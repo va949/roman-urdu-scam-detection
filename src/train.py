@@ -16,7 +16,7 @@ import joblib
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import confusion_matrix, f1_score
+from sklearn.metrics import average_precision_score, confusion_matrix, f1_score, roc_auc_score
 from sklearn.pipeline import FeatureUnion, make_pipeline
 
 import data as data_mod
@@ -29,6 +29,26 @@ def build(C):
         ("word", TfidfVectorizer(analyzer="word", ngram_range=(1, 2), sublinear_tf=True)),
     ])
     return make_pipeline(feats, LogisticRegression(C=C, max_iter=3000, class_weight="balanced"))
+
+
+THRESHOLDS = np.linspace(0.2, 0.8, 25)
+
+
+def pick_threshold(y, p, grid=THRESHOLDS):
+    """Threshold with the best validation macro-F1; ties go to the MIDDLE of the tied range.
+
+    Validation is often saturated (every threshold scores 1.0). Taking the first
+    tie would always pick 0.2, the most trigger-happy setting; the middle keeps
+    the widest margin on both sides.
+    """
+    scores = np.array([f1_score(y, (p >= t).astype(int), average="macro", zero_division=0) for t in grid])
+    return float(np.median(grid[np.isclose(scores, scores.max())]))
+
+
+def ranking(y, prob):
+    """Threshold-free: how well scam probabilities rank scams above legit messages."""
+    return {"roc_auc": round(float(roc_auc_score(y, prob)), 4),
+            "pr_auc": round(float(average_precision_score(y, prob)), 4)}
 
 
 def report(y, p):
@@ -44,15 +64,16 @@ def main():
     ap.add_argument("--data", required=True)
     ap.add_argument("--text-col"); ap.add_argument("--label-col"); ap.add_argument("--group-col")
     ap.add_argument("--out", default="models/tfidf_lr.joblib")
+    ap.add_argument("--seed", type=int, default=0, help="split seed (same seed = same split as xlmr.py)")
     a = ap.parse_args()
 
     df = data_mod.load(a.data, a.text_col, a.label_col, a.group_col)
-    tr, va, te = splits.train_val_test(df)
+    tr, va, te = splits.train_val_test(df, seed=a.seed)
     X, y = df["text"], df["label"].to_numpy()
     print(f"train={len(tr)} val={len(va)} test={len(te)} | templates "
           f"{df.group.iloc[tr].nunique()}/{df.group.iloc[va].nunique()}/{df.group.iloc[te].nunique()}")
 
-    # 1) pick C on validation
+    # 1) pick C on validation (ties keep the smallest C, i.e. the strongest regularisation)
     best = None
     for C in (0.3, 1.0, 3.0, 10.0):
         m = build(C).fit(X.iloc[tr], y[tr])
@@ -64,12 +85,13 @@ def main():
 
     # 2) pick the decision threshold on validation (trade recall vs false alarms)
     pv = model.predict_proba(X.iloc[va])[:, 1]
-    thr = max(np.linspace(0.2, 0.8, 25), key=lambda t: f1_score(y[va], (pv >= t).astype(int), average="macro"))
+    thr = pick_threshold(y[va], pv)
 
     # 3) one look at the locked test set
-    pt = (model.predict_proba(X.iloc[te])[:, 1] >= thr).astype(int)
+    prob_te = model.predict_proba(X.iloc[te])[:, 1]
     result = {"C": C, "threshold": round(float(thr), 3),
-              "val": report(y[va], (pv >= thr).astype(int)), "test": report(y[te], pt)}
+              "val": report(y[va], (pv >= thr).astype(int)),
+              "test": {**report(y[te], (prob_te >= thr).astype(int)), **ranking(y[te], prob_te)}}
     print(json.dumps(result, indent=2))
 
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)

@@ -1,0 +1,7 @@
+# Deep-learning models (src/xlmr.py), on top of requirements.txt.
+# Install PyTorch with CUDA from the PyTorch index first, e.g. for CUDA 13.0:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu130
+# then:
+#   pip install -r requirements-dl.txt
+torch>=2.9
+transformers>=4.57
